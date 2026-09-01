@@ -5,23 +5,17 @@ class DocumentService {
 
   createDocument(file, owner) {
     if (!file) {
-      const error = new Error('O arquivo é obrigatório');
-      error.statusCode = 400;
-      throw error;
+      throw this.createHttpError('O arquivo é obrigatório', 400);
     }
 
-    if (typeof owner !== 'string' || !owner.trim()) {
-      const error = new Error('O proprietário é obrigatório');
-      error.statusCode = 400;
-      throw error;
-    }
+    const normalizedOwner = this.getRequiredOwner(owner);
 
     const document = {
       id: file.filename,
       originalName: file.originalname,
       size: file.size,
       uploadedAt: new Date().toISOString(),
-      owner: owner.trim(),
+      owner: normalizedOwner,
       filePath: file.path,
     };
 
@@ -30,14 +24,12 @@ class DocumentService {
   }
 
   listDocuments(owner) {
-    if (owner !== undefined && (typeof owner !== 'string' || !owner.trim())) {
-      const error = new Error('O proprietário deve ser um texto não vazio');
-      error.statusCode = 400;
-      throw error;
-    }
+    const normalizedOwner = owner === undefined
+      ? undefined
+      : this.getRequiredOwner(owner, 'O proprietário deve ser um texto não vazio');
 
     return this.documentRepository
-      .findAll(owner?.trim())
+      .findAll(normalizedOwner)
       .map((document) => this.toMetadata(document));
   }
 
@@ -45,12 +37,24 @@ class DocumentService {
     const document = this.documentRepository.findById(id);
 
     if (!document) {
-      const error = new Error('Documento não encontrado');
-      error.statusCode = 404;
-      throw error;
+      throw this.createHttpError('Documento não encontrado', 404);
     }
 
     return document;
+  }
+
+  getRequiredOwner(owner, errorMessage = 'O proprietário é obrigatório') {
+    if (typeof owner !== 'string' || !owner.trim()) {
+      throw this.createHttpError(errorMessage, 400);
+    }
+
+    return owner.trim();
+  }
+
+  createHttpError(message, statusCode) {
+    const error = new Error(message);
+    error.statusCode = statusCode;
+    return error;
   }
 
   toMetadata(document) {
